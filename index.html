@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Right Hand – Phone Hold Demo</title>
+<title>Left Hand – Phone Hold Demo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -25,15 +25,23 @@ svg{
   height:auto;
 }
 
+/* 手首＋手の甲：単一ボリューム（重なりなし） */
 .hand-mass{
   fill:rgba(255,255,0,0.25);
   stroke:none;
 }
 
-.finger,.thumb{
+.finger{
   stroke:yellow;
   stroke-width:5;
   stroke-linecap:round;
+}
+
+.thumb{
+  stroke:yellow;
+  stroke-width:5;
+  stroke-linecap:round;
+  fill:none;
 }
 
 .nail{
@@ -59,34 +67,41 @@ svg{
 
 <svg viewBox="0 0 360 360">
 
-  <!-- ケータイ（世界座標・回らない） -->
+  <!-- ケータイ（非反転） -->
   <rect id="phone" class="phone"
         x="150" y="135" width="60" height="110"/>
 
-  <!-- 手 -->
-  <g id="handRoot">
+  <!-- 左手（鏡像） -->
+  <g id="leftHand" transform="scale(-1,1) translate(-360,0)">
 
-    <!-- 手首＋手の甲（一体） -->
-    <g id="handMass">
-      <rect x="140" y="235" width="80" height="55"
-            rx="22" class="hand-mass"/>
-      <rect x="140" y="185" width="80" height="80"
-            rx="24" class="hand-mass"/>
-    </g>
+    <!-- 手首＋手の甲：1パス -->
+    <path id="handMass" class="hand-mass"
+      d="
+        M140 185
+        Q180 165 220 185
+        L220 245
+        Q220 270 200 270
+        L160 270
+        Q140 270 140 245
+        Z
+      "/>
 
     <!-- 指 -->
     <g id="fingersGroup">
-      <line id="thumb"  class="thumb"/>
       <line id="index"  class="finger"/>
       <line id="middle" class="finger"/>
       <line id="ring"   class="finger"/>
       <line id="little" class="finger"/>
 
-      <polygon id="n_thumb"  class="nail"/>
+      <!-- 親指：2セグメント -->
+      <polyline id="thumb" class="thumb"/>
+
+      <!-- 爪 -->
       <polygon id="n_index"  class="nail"/>
       <polygon id="n_middle" class="nail"/>
       <polygon id="n_ring"   class="nail"/>
       <polygon id="n_little" class="nail"/>
+      <polygon id="n_thumb"  class="nail"/>
     </g>
   </g>
 
@@ -96,12 +111,19 @@ svg{
 <script>
 const baseY = 185;
 
+// 左手用（示指が最長）
 const fingers = {
-  thumb:  { x:230, relax:40, hold:28, lock:22 },
-  index:  { x:210, relax:75, hold:36, lock:26 },
-  middle: { x:190, relax:72, hold:38, lock:32 },
-  ring:   { x:170, relax:68, hold:32, lock:28 },
-  little: { x:150, relax:60, hold:30, lock:26 }
+  index:  { x:150, relax:75, hold:36, lock:26 },
+  middle: { x:170, relax:72, hold:38, lock:32 },
+  ring:   { x:190, relax:68, hold:32, lock:28 },
+  little: { x:210, relax:60, hold:30, lock:26 }
+};
+
+// 親指：2関節（くの字）
+const thumbPos = {
+  relax:  [ [230,215],[250,200],[260,185] ],
+  hold:   [ [230,215],[240,210],[245,205] ],
+  lock:   [ [230,215],[235,220],[238,225] ]
 };
 
 const pivotBase = { x:180, y:255 };
@@ -113,8 +135,8 @@ const pivotByState = {
 
 const rotationByState = {
   RELAX:{mass:0,fingers:0},
-  HOLD:{mass:6,fingers:14},
-  LOCK:{mass:8,fingers:18}
+  HOLD:{mass:4,fingers:12},
+  LOCK:{mass:6,fingers:16}
 };
 
 const handMass = document.getElementById("handMass");
@@ -130,7 +152,6 @@ function nail(id,x,y){
 
 function applyState(state){
   label.textContent = state;
-
   phone.style.opacity = state==="RELAX" ? 0 : 1;
 
   const pivot = {
@@ -138,6 +159,7 @@ function applyState(state){
     y: pivotBase.y + pivotByState[state].y
   };
 
+  // 手首は回らない：手の甲だけ軽く
   handMass.setAttribute(
     "transform",
     `rotate(${rotationByState[state].mass} ${pivot.x} ${pivot.y})`
@@ -149,12 +171,12 @@ function applyState(state){
 
   for(const id in fingers){
     const f=fingers[id];
-    const el=document.getElementById(id);
     const len =
       state==="RELAX"?f.relax:
       state==="HOLD"?f.hold:
       f.lock;
 
+    const el=document.getElementById(id);
     el.setAttribute("x1",f.x);
     el.setAttribute("y1",baseY);
     el.setAttribute("x2",f.x);
@@ -169,35 +191,25 @@ function applyState(state){
     }
   }
 
-  // 親指は内側へ倒す
-  const th=document.getElementById("thumb");
+  // 親指（くの字）
+  const pts = thumbPos[state].map(p=>p.join(",")).join(" ");
+  document.getElementById("thumb").setAttribute("points",pts);
+
+  const tn=document.getElementById("n_thumb");
   if(state==="RELAX"){
-    th.setAttribute("x2",260);
-    th.setAttribute("y2",205);
+    const p=thumbPos.relax[2];
+    nail("n_thumb",p[0],p[1]);
+    tn.style.opacity=1;
   }else{
-    th.setAttribute("x2",210);
-    th.setAttribute("y2",215);
+    tn.style.opacity=0;
   }
 }
 
-function applyLockWithLead(){
-  applyState("HOLD");
-  setTimeout(()=>{
-    applyState("LOCK");
-  },200);
-}
-
-const sequence = ["RELAX","HOLD","LOCK","HOLD","RELAX"];
-let idx=0;
-
+const seq=["RELAX","HOLD","LOCK","HOLD","RELAX"];
+let i=0;
 setInterval(()=>{
-  const s=sequence[idx];
-  if(s==="LOCK"){
-    applyLockWithLead();
-  }else{
-    applyState(s);
-  }
-  idx=(idx+1)%sequence.length;
+  applyState(seq[i]);
+  i=(i+1)%seq.length;
 },2600);
 
 applyState("RELAX");
