@@ -1,184 +1,131 @@
-  const phone = document.getElementById("phone");
-  const label = document.getElementById("label");
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Right Hand – Phone Hold Demo</title>
+<style>
+html,body{
+  margin:0;
+  padding:0;
+  background:black;
+  overflow:hidden;
+}
+svg{width:100vw;height:100vh}
+text{fill:#aaa;font-family:sans-serif}
+</style>
+</head>
+<body>
 
-  const handMassGroup = document.getElementById("handMassGroup"); // 手首含むが「回さない」
-  const fingersGroup  = document.getElementById("fingersGroup");  // 指だけ回す
+<svg viewBox="0 0 400 700">
 
-  // 右手：親指は左側、示指が最も長く残る
-  const fingers = {
-    index:  { x:165, relax:75, hold:36, lock:26 },
-    middle: { x:185, relax:72, hold:38, lock:32 },
-    ring:   { x:205, relax:68, hold:32, lock:28 },
-    little: { x:225, relax:60, hold:30, lock:26 }
-  };
+<!-- status -->
+<text x="200" y="80" text-anchor="middle" id="label">RELAX</text>
 
-  // 概念ピボット（不可視）＋状態依存微移動（1〜2px）
-  const pivotBase = { x:180, y:255 };
-  const pivotByState = {
-    RELAX: { x:0, y:0 },
-    HOLD:  { x:1, y:-1 },
-    LOCK:  { x:2, y:-2 }
-  };
+<!-- phone -->
+<rect id="phone" x="160" y="250" width="80" height="120"
+ rx="18" fill="#2a6cff" opacity="0"/>
 
-  // 回転量：手首は回さない（= harotFingersByState = { RELAX:0, HOLD:14, LOCK:18 };
+<!-- wrist + hand (no boundary) -->
+<rect x="155" y="370" width="90" height="60" rx="30"
+ fill="rgba(255,255,0,0.25)"/>
+<rect x="140" y="260" width="120" height="130" rx="32"
+ fill="rgba(255,255,0,0.25)"/>
 
-  // 爪（三角）
-  function nail(id, x, y){
-    const s = 6;
-    document.getElementById(id).setAttribute(
-      "points",
-      `${x-s},${y} ${x+s},${y} ${x},${y-s}`
-    );
+<!-- fingers -->
+<g id="fingers" stroke="#ff0" stroke-width="6" stroke-linecap="round">
+  <line id="thumb"/>
+  <line id="index"/>
+  <line id="middle"/>
+  <line id="ring"/>
+  <line id="little"/>
+</g>
+
+<!-- nails -->
+<g id="nails" fill="#ff0">
+  <polygon id="n_thumb"/>
+  <polygon id="n_index"/>
+  <polygon id="n_middle"/>
+  <polygon id="n_ring"/>
+  <polygon id="n_little"/>
+</g>
+
+</svg>
+
+<script>
+const baseY = 260;
+
+const fingers = {
+  thumb:  {x:265, relax:42, hold:22, a:45},
+  index:  {x:220, relax:78, hold:40, a:-28},
+  middle: {x:200, relax:72, hold:38, a:-18},
+  ring:   {x:180, relax:64, hold:34, a:-10},
+  little: {x:160, relax:56, hold:30, a:-4}
+};
+
+function drawFinger(id,len,angle){
+  const rad=angle*Math.PI/180;
+  const x1=fingers[id].x;
+  const y1=baseY;
+  const x2=x1+Math.sin(rad)*len;
+  const y2=y1-Math.cos(rad)*len;
+  const el=document.getElementById(id);
+  el.setAttribute("x1",x1);
+  el.setAttribute("y1",y1);
+  el.setAttribute("x2",x2);
+  el.setAttribute("y2",y2);
+  return {x:x2,y:y2};
+}
+
+function nail(id,x,y){
+  document.getElementById(id).setAttribute(
+    "points",
+    `${x},${y} ${x-5},${y-8} ${x+5},${y-8}`
+  );
+}
+
+function hideNails(){
+  document.querySelectorAll("#nails polygon")
+    .forEach(p=>p.setAttribute("points",""));
+}
+
+function relax(){
+  label.textContent="RELAX";
+  phone.setAttribute("opacity",0);
+  for(let k in fingers){
+    const p=drawFinger(k,fingers[k].relax,0);
+    nail("n_"+k,p.x,p.y);
   }
+}
 
-  // 親指（2セグメント）: くの字 + 短縮
-  // thumbA: 基部→中間, thumbB: 中間→先端
-  // 右手なので左側に出す
-  const thumb = {
-    base: { x:145, y:220 },      // 基部
-    relax: { mid:{x:135,y:205}, tip:{x:125,y:190} }, // 長く伸びる
-    hold:  { mid:{x:135,y:215}, tip:{x:130,y:210} }, // 内に倒れ短く
-    lock:  { mid:{x:140,y:230}, tip:{x:142,y:238} }  // さらに折れて短い
-  };
-
-  function setFingerLine(id, x, len){
-    const el = document.getElementById(id);
-    el.setAttribute("x1", x);
-    el.setAttribute("y1", baseY);
-    el.setAttribute("x2", x);
-    el.setAttribute("y2", baseY - len);
+function hold(){
+  label.textContent="HOLD";
+  phone.setAttribute("opacity",1);
+  hideNails();
+  for(let k in fingers){
+    drawFinger(k,fingers[k].hold,fingers[k].a);
   }
+}
 
-  function setThumb(state){
-    const A = document.getElementById("thumbA");
-    const B = document.getElementById("thumbB");
-
-    const p =
-      state === "RELAX" ? thumb.relax :
-      state === "HOLD"  ? thumb.hold  :
-                          thumb.lock;
-
-    A.setAttribute("x1", thumb.base.x);
-    A.setAttribute("y1", thumb.base.y);
-    A.setAttribute("x2", p.mid.x);
-    A.setAttribute("y2", p.mid.y);
-
-    B.setAttribute("x1", p.mid.x);
-    B.setAttribute("y1", p.mid.y);
-    B.setAttribute("x2", p.tip.x);
-    B.setAttribute("y2", p.tip.y);
-
-    // 親指の爪（RELAXのみ）
-    const nt = document.getElementById("n_thumb");
-    if(state === "RELAX"){
-      nail("n_thumb", p.tip.x, p.tip.y);
-      nt.style.opacity = 1;
-    }else{
-      nt.style.opacity = 0;
-    }
+function lock(){
+  label.textContent="LOCK";
+  for(let k in fingers){
+    drawFinger(k,fingers[k].hold-4,fingers[k].a-5);
   }
+}
 
-  function setNailsVisible(on){
-    const op = on ? 1 : 0;
-    ["index","middle","ring","little"].forEach(id=>{
-      document.getElementById("n_"+id).style.opacity = op;
-    });
-    document.getElementById("n_thumb").style.opacity = op;
+function miniOpen(){
+  label.textContent="MINI OPEN";
+  for(let k in fingers){
+    drawFinger(k,fingers[k].hold-1,fingers[k].a-3);
   }
+}
 
-  function applyState(state){
-    label.textContent = state;
-
-    // ケータイ：RELAXで消え、それ以外で固定表示（動かない）
-    phone.style.opacity = (state === "RELAX") ? 0 : 1;
-
-    // 概念ピボット
-    const pivot = {
-      x: pivotBase.x + pivotByState[state].x,
-      y: pivotBase.y + pivotByState[state].y
-    };
-
-    // 手首は回さない（ここ重要）
-    handMassGroup.setAttribute("transform", "");
-
-    // 指だけ回旋（手首固定感を担保）
-    const rf = rotFingersByState[state] || 0;
-    fingersGroup.setAttribute("transform", `rotate(${rf} ${pivot.x} ${pivot.y})`);
-
-    // 指長（短くなる＝屈曲）
-    for(const id in fingers){
-      const f = fingers[id];
-      const len =
-        state === "RELAX" ? f.relax :
-        state === "HOLD"  ? f.hold  :
-                            f.lock;
-      setFingerLine(id, f.x, len);
-
-      // 爪はRELAXのみ
-      if(state === "RELAX"){
-        nail("n_"+id, f.x, baseY - len);
-      }
-    }
-
-    // 親指
-    setThumb(state);
-
-    // 爪の表示
-    setNailsVisible(state === "RELAX");
-  }
-
-  // LOCKで「親指＋示指が先行して締まる」
-  function applyLockWithLead(){
-    // まずHOLDを描画
-    applyState("HOLD");
-
-    // 200ms後にLOCKへ（ただし先行：親指＋示指のみ先に締める）
-    setTimeout(()=>{
-      // LOCK状態の回旋（指回旋）＋ケータイ固定は applyState("LOCK") が担うが、
-      // 先行締結を作るために「示指＋親指だけ先にlock長へ」→ さらに残りへ
-      label.textContent = "LOCK";
-      phone.style.opacity = 1;
-
-      const pivot = {
-        x: pivotBase.x + pivotByState.LOCK.x,
-        y: pivotBase.y + pivotByState.LOCK.y
-      };
-      fingersGroup.setAttribute("transform", `rotate(${rotFingersByState.LOCK} ${pivot.x} ${pivot.y})`);
-
-      // 先行：示指
-      setFingerLine("index", fingers.index.x, fingers.index.lock);
-
-      // 先行：親指（lock）
-      setThumb("LOCK");
-
-      // 残りはさらに200msで追従
-      setTimeout(()=>{
-        setFingerLine("middle", fingers.middle.x, fingers.middle.lock);
-        setFingerLine("ring",   fingers.ring.x,   fingers.ring.lock);
-        setFingerLine("little", fingers.little.x, fingers.little.lock);
-      }, 200);
-
-      // 爪はLOCKでは常に消す
-      setNailsVisible(false);
-
-    }, 200);
-  }
-
-  // ========= シーケンス =========
-  const seq = ["RELAX","HOLD","LOCK","HOLD","RELAX"];
-  let idx = 0;
-
-  setInterval(()=>{
-    const s = seq[idx];
-    if(s === "LOCK"){
-      applyLockWithLead();
-    }else{
-      applyState(s);
-    }
-    idx = (idx + 1) % seq.length;
-  }, 2600);
-
-  applyState("RELAX");
+relax();
+setTimeout(hold,1200);
+setTimeout(lock,2600);
+setTimeout(miniOpen,3800);
+setTimeout(relax,5200);
 </script>
 </body>
 </html>
