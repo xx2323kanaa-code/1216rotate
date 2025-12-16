@@ -3,70 +3,120 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Right Hand – Phone Hold Demo</title>
+<title>Right Hand Phone Hold – Final</title>
 <style>
 html,body{
-  margin:0;
-  padding:0;
-  background:black;
-  overflow:hidden;
+  margin:0; padding:0;
+  width:100%; height:100%;
+  background:#000;
 }
 svg{width:100vw;height:100vh}
-text{fill:#aaa;font-family:sans-serif}
+text{fill:#aaa;font-family:sans-serif;font-size:14px}
+.hand{fill:rgba(255,255,0,0.25);stroke:none}
+.finger,.thumbseg{
+  stroke:#ff0;
+  stroke-width:6;
+  stroke-linecap:round;
+  fill:none;
+}
+.nail{fill:#ff0}
+.phone{fill:#1e6cff;rx:16;ry:16;opacity:0}
 </style>
 </head>
-<body>
 
+<body>
 <svg viewBox="0 0 400 700">
 
-<!-- status -->
-<text x="200" y="80" text-anchor="middle" id="label">RELAX</text>
+<text id="label" x="200" y="70" text-anchor="middle">RELAX</text>
 
-<!-- phone -->
-<rect id="phone" x="160" y="250" width="80" height="120"
- rx="18" fill="#2a6cff" opacity="0"/>
+<!-- phone (fixed, wrist-parallel) -->
+<rect id="phone" class="phone" x="160" y="260" width="80" height="130"/>
 
-<!-- wrist + hand (no boundary) -->
-<rect x="155" y="370" width="90" height="60" rx="30"
- fill="rgba(255,255,0,0.25)"/>
-<rect x="140" y="260" width="120" height="130" rx="32"
- fill="rgba(255,255,0,0.25)"/>
+<!-- hand -->
+<g id="handRoot">
 
-<!-- fingers -->
-<g id="fingers" stroke="#ff0" stroke-width="6" stroke-linecap="round">
-  <line id="thumb"/>
-  <line id="index"/>
-  <line id="middle"/>
-  <line id="ring"/>
-  <line id="little"/>
+  <!-- palm : U shape -->
+  <path id="palm" class="hand"
+    d="M130 250
+       Q200 200 270 250
+       L270 360
+       Q200 390 130 360
+       Z"/>
+
+  <!-- wrist : inverted U -->
+  <path id="wrist" class="hand"
+    d="M155 360
+       Q200 405 245 360
+       L245 430
+       Q200 455 155 430
+       Z"/>
+
+  <!-- fingers group (rotate together) -->
+  <g id="fingers">
+
+    <line id="index"  class="finger"/>
+    <line id="middle" class="finger"/>
+    <line id="ring"   class="finger"/>
+    <line id="little" class="finger"/>
+
+    <!-- thumb (independent, 2 segments) -->
+    <line id="thumbA" class="thumbseg"/>
+    <line id="thumbB" class="thumbseg"/>
+
+    <!-- nails -->
+    <polygon id="n_index"  class="nail"/>
+    <polygon id="n_middle" class="nail"/>
+    <polygon id="n_ring"   class="nail"/>
+    <polygon id="n_little" class="nail"/>
+    <polygon id="n_thumb"  class="nail"/>
+  </g>
+
 </g>
-
-<!-- nails -->
-<g id="nails" fill="#ff0">
-  <polygon id="n_thumb"/>
-  <polygon id="n_index"/>
-  <polygon id="n_middle"/>
-  <polygon id="n_ring"/>
-  <polygon id="n_little"/>
-</g>
-
 </svg>
 
 <script>
-const baseY = 260;
+/* ===== parameters ===== */
+const baseY = 250;
 
+/* finger geometry : right hand, dorsal view */
 const fingers = {
-  thumb:  {x:265, relax:42, hold:22, a:45},
-  index:  {x:220, relax:78, hold:40, a:-28},
-  middle: {x:200, relax:72, hold:38, a:-18},
-  ring:   {x:180, relax:64, hold:34, a:-10},
-  little: {x:160, relax:56, hold:30, a:-4}
+  index:  {x:215, relax:90, hold:46, lock:36, aHold:-40, aLock:-55},
+  middle: {x:195, relax:82, hold:44, lock:38, aHold:-32, aLock:-45},
+  ring:   {x:175, relax:72, hold:40, lock:34, aHold:-22, aLock:-32},
+  little: {x:155, relax:62, hold:36, lock:32, aHold:-12, aLock:-20}
 };
 
+/* thumb : reverse-kinked, independent */
+const thumb = {
+  base:{x:260,y:300},
+  relax:{mid:{x:245,y:270},tip:{x:230,y:240}},
+  hold: {mid:{x:240,y:300},tip:{x:225,y:305}},
+  lock: {mid:{x:245,y:320},tip:{x:235,y:335}},
+  mini: {mid:{x:242,y:310},tip:{x:230,y:320}}
+};
+
+/* invisible conceptual pivot */
+const pivotBase={x:200,y:330};
+const pivotShift={
+  RELAX:{x:0,y:0},
+  HOLD:{x:1,y:-1},
+  LOCK:{x:2,y:-2},
+  MINI:{x:1,y:-1}
+};
+
+/* rotation for 4 fingers + palm */
+const rot={
+  RELAX:0,
+  HOLD:-90,
+  LOCK:-90,
+  MINI:-90
+};
+
+/* ===== helpers ===== */
 function drawFinger(id,len,angle){
+  const f=fingers[id];
   const rad=angle*Math.PI/180;
-  const x1=fingers[id].x;
-  const y1=baseY;
+  const x1=f.x,y1=baseY;
   const x2=x1+Math.sin(rad)*len;
   const y2=y1-Math.cos(rad)*len;
   const el=document.getElementById(id);
@@ -76,56 +126,97 @@ function drawFinger(id,len,angle){
   el.setAttribute("y2",y2);
   return {x:x2,y:y2};
 }
-
 function nail(id,x,y){
-  document.getElementById(id).setAttribute(
-    "points",
-    `${x},${y} ${x-5},${y-8} ${x+5},${y-8}`
-  );
+  document.getElementById(id)
+    .setAttribute("points",`${x},${y} ${x-6},${y-10} ${x+6},${y-10}`);
 }
-
 function hideNails(){
-  document.querySelectorAll("#nails polygon")
-    .forEach(p=>p.setAttribute("points",""));
+  document.querySelectorAll(".nail").forEach(n=>n.setAttribute("points",""));
+}
+function drawThumb(state){
+  const p=thumb[state];
+  const A=document.getElementById("thumbA");
+  const B=document.getElementById("thumbB");
+  A.setAttribute("x1",thumb.base.x);
+  A.setAttribute("y1",thumb.base.y);
+  A.setAttribute("x2",p.mid.x);
+  A.setAttribute("y2",p.mid.y);
+  B.setAttribute("x1",p.mid.x);
+  B.setAttribute("y1",p.mid.y);
+  B.setAttribute("x2",p.tip.x);
+  B.setAttribute("y2",p.tip.y);
+  if(state==="RELAX") nail("n_thumb",p.tip.x,p.tip.y);
 }
 
-function relax(){
-  label.textContent="RELAX";
-  phone.setAttribute("opacity",0);
-  for(let k in fingers){
-    const p=drawFinger(k,fingers[k].relax,0);
-    nail("n_"+k,p.x,p.y);
+/* ===== states ===== */
+const phone=document.getElementById("phone");
+const label=document.getElementById("label");
+const fingersG=document.getElementById("fingers");
+const palm=document.getElementById("palm");
+
+function apply(state){
+  label.textContent=state;
+  phone.style.opacity=(state==="RELAX")?0:1;
+
+  const pv={
+    x:pivotBase.x+pivotShift[state].x,
+    y:pivotBase.y+pivotShift[state].y
+  };
+
+  /* palm + 4 fingers rotate together */
+  fingersG.setAttribute(
+    "transform",
+    `rotate(${rot[state]} ${pv.x} ${pv.y})`
+  );
+  palm.setAttribute(
+    "transform",
+    `rotate(${rot[state]/3} ${pv.x} ${pv.y})`
+  );
+
+  if(state==="RELAX"){
+    for(const k in fingers){
+      const p=drawFinger(k,fingers[k].relax,0);
+      nail("n_"+k,p.x,p.y);
+    }
+    drawThumb("RELAX");
+  }
+
+  if(state==="HOLD"){
+    hideNails();
+    for(const k in fingers){
+      drawFinger(k,fingers[k].hold,fingers[k].aHold);
+    }
+    drawThumb("hold");
+  }
+
+  if(state==="LOCK"){
+    hideNails();
+    for(const k in fingers){
+      drawFinger(k,fingers[k].lock,fingers[k].aLock);
+    }
+    drawThumb("lock");
+  }
+
+  if(state==="MINI"){
+    hideNails();
+    for(const k in fingers){
+      drawFinger(
+        k,
+        fingers[k].lock+6,
+        fingers[k].aLock+8
+      );
+    }
+    drawThumb("mini");
   }
 }
 
-function hold(){
-  label.textContent="HOLD";
-  phone.setAttribute("opacity",1);
-  hideNails();
-  for(let k in fingers){
-    drawFinger(k,fingers[k].hold,fingers[k].a);
-  }
-}
-
-function lock(){
-  label.textContent="LOCK";
-  for(let k in fingers){
-    drawFinger(k,fingers[k].hold-4,fingers[k].a-5);
-  }
-}
-
-function miniOpen(){
-  label.textContent="MINI OPEN";
-  for(let k in fingers){
-    drawFinger(k,fingers[k].hold-1,fingers[k].a-3);
-  }
-}
-
-relax();
-setTimeout(hold,1200);
-setTimeout(lock,2600);
-setTimeout(miniOpen,3800);
-setTimeout(relax,5200);
+/* ===== sequence ===== */
+apply("RELAX");
+setTimeout(()=>apply("HOLD"),1200);
+setTimeout(()=>apply("LOCK"),2600);
+setTimeout(()=>apply("MINI"),3800);
+setTimeout(()=>apply("LOCK"),4800);
+setTimeout(()=>apply("RELAX"),6200);
 </script>
 </body>
 </html>
